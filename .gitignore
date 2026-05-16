@@ -1,0 +1,5 @@
+grid.xlsx
+to-do.txt
+cmake-build-debug/
+cmake-build-release/
+.idea/

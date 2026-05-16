@@ -1,0 +1,575 @@
+#pragma once
+#include "game.hpp"
+#include <iostream>
+
+
+Game::Game()
+{
+	initWindow();
+	initGame();
+	resetGame();
+	m_gameState = Pause;
+}
+
+
+void Game::run()
+{
+	sf::Clock frameTimer;
+
+	while (m_running)
+	{
+		sf::Time dT = frameTimer.restart();
+		m_dT += dT.asSeconds();
+
+		float gameSpeed = m_gameSpeed;
+		if (m_hardDrop)
+		{
+			gameSpeed /= 100;
+		}
+		else if (m_softDrop)
+		{
+			gameSpeed /= 10;
+		}
+
+		if (m_dT >= gameSpeed)
+		{
+			m_dT = 0.0f;
+			m_moveMinoDown = true;
+		}
+
+
+		movement();
+		collision();
+		inputEvents();
+		render();
+
+
+		m_moveMinoDown = false;
+	}
+}
+
+void Game::initWindow()
+{
+	std::string title = "Tetris";
+	
+	int width = m_config.cellSize * m_config.cols;
+	int height = m_config.cellSize * m_config.rows + m_config.topBarHeight;
+
+	m_window = std::make_shared<sf::RenderWindow>();
+
+	m_window->create(
+		sf::VideoMode(width, height),
+		title,
+		sf::Style::Titlebar | sf::Style::Close);
+
+	m_window->setKeyRepeatEnabled(false);
+
+	// load font from file
+	if (!m_font.loadFromFile("arial.ttf"))
+	{
+		std::cout << "Unable to load font file!\n";
+		exit(1);
+	}
+}
+
+void Game::initGame()
+{
+	m_running = true;
+	m_shuffleBag.reserve(7);
+
+	m_menu = std::make_unique<Menu>(sf::Vector2f(m_window->getSize()), sf::Vector2f(0.9f, 0.5f));
+	m_menu->addButton(sf::Vector2f(0.9f, 0.15f), sf::Vector2f(1.0f, -0.2f), m_font, "CONTINUE");
+	m_menu->addButton(sf::Vector2f(0.9f, 0.15f), sf::Vector2f(1.0f, 0.0f), m_font, "RESTART");
+	m_menu->addButton(sf::Vector2f(0.9f, 0.15f), sf::Vector2f(1.0f, 0.2f), m_font, "QUIT");
+
+	m_playfield = std::make_unique<Playfield>(m_config.cols, m_config.rows);
+}
+
+void Game::resetGame()
+{
+	m_moveMinoDown = false;
+	m_softDrop = false;
+	m_hardDrop = false;
+	m_shuffleBag.clear();
+	m_score = {};
+	
+	m_gameState = Playing;
+	m_gameSpeed = m_config.gameSpeed;
+	m_dT = 0.0f;
+	m_playfield->reset();
+	spawnMino();
+}
+
+int Game::randomShapeType()
+{
+	int shapeType = 0;
+
+	std::random_device rd;
+	std::mt19937_64 gen(rd());
+
+	// full random
+	if (m_config.randomizer == FullRandom)
+	{
+		std::uniform_int_distribution uid(1, 7);
+		shapeType = uid(gen);
+	}
+
+	// shuffle bag
+	else if (m_config.randomizer == ShuffleBag)
+	{
+		if (m_shuffleBag.size() == 0)
+		{
+			for (int i = 1; i <= 7; i++)
+			{
+				m_shuffleBag.push_back(i);
+			}
+		}
+
+		int elements = static_cast<int>(m_shuffleBag.size());
+
+		std::uniform_int_distribution uid(0, elements - 1);
+		int index = uid(gen);
+		shapeType = m_shuffleBag[index];
+
+		m_shuffleBag.erase(m_shuffleBag.begin() + index);
+	}
+
+	return shapeType;
+}
+
+void Game::updateScore(int clearedRows)
+{
+	m_score.points += m_score.softDropRows - 1;
+	m_score.points += m_score.hardDropRows * 2 - 1;
+	
+	if (clearedRows > 0)
+	{
+		int points = m_score.level + 1;
+
+		switch (clearedRows)
+		{
+		case 1:
+			points *= 40;
+			break;
+		case 2:
+			points *= 100;
+			break;
+		case 3:
+			points *= 300;
+			break;
+		case 4:
+			points *= 1200;
+			break;
+		}
+
+		m_score.points += points;
+		m_score.rows += clearedRows;
+		m_score.level = int(m_score.rows * 0.1f);
+	}
+}
+
+void Game::togglePause()
+{
+	if (m_gameState == Playing)
+	{
+		m_gameState = Pause;
+		m_menu->setActiveIndex(0);
+	}
+	else if (m_gameState == Pause)
+	{
+		m_gameState = Playing;
+	}
+}
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+void Game::spawnMino()
+{
+	int shapeType = randomShapeType();
+	sf::Vector2i position;
+	position.x = (m_config.cols / 2) - 1;
+	position.y = m_config.rows + 1;
+
+	if (shapeType == 4) position.x += 1;
+
+	m_activeMino.reset();
+	m_activeMino = std::make_shared<Tetromino>(shapeType, position);
+
+	if (m_config.showMinoShadow) {
+		m_minoShadow.reset();
+		m_minoShadow = std::make_shared<Tetromino>(shapeType, position);
+		updateShadowPosition();
+	}
+}
+
+void Game::moveMino(sf::Vector2i velocity)
+{
+	m_activeMino->move(velocity);
+
+	if (m_config.showMinoShadow)
+	{
+		m_minoShadow->move(velocity);
+		updateShadowPosition();
+	}
+}
+
+void Game::rotateMino(int rotation)
+{
+	m_activeMino->rotate(rotation);
+	
+	if (m_config.showMinoShadow)
+	{
+		m_minoShadow->rotate(rotation);
+		updateShadowPosition();
+	}
+}
+
+void Game::updateShadowPosition()
+{
+	if (!m_config.showMinoShadow)
+		return;
+
+	m_minoShadow->setPosition(m_activeMino->getPosition());
+
+	for (int y = m_minoShadow->getPosition().y; y >= 1; y--)
+	{
+		m_minoShadow->move(sf::Vector2i(0, -1));
+
+		if (checkCollision(m_minoShadow->getShapePositions()))
+		{
+			m_minoShadow->move(sf::Vector2i(0, 1));
+			return;
+		}
+	}
+}
+
+bool Game::checkCollision(const std::array<sf::Vector2i, 4>& positions)
+{
+	for (int i = 0; i < 4; i++)
+	{
+		if (!m_playfield->isCellEmpty(positions[i]))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+void Game::movement()
+{
+	// MAIN MENU
+	if (m_gameState == Pause)
+	{
+		switch (m_lastPressedKey)
+		{
+		case sf::Keyboard::Up:
+			m_menu->setActiveIndex(m_menu->getActiveIndex() - 1);
+			break;
+
+		case sf::Keyboard::Down:
+			m_menu->setActiveIndex(m_menu->getActiveIndex() + 1);
+			break;
+		
+		case sf::Keyboard::Enter:
+			if (m_menu->getActiveIndex() == 0)
+			{
+				togglePause();
+				return;
+			}
+			else if (m_menu->getActiveIndex() == 1)
+			{
+				resetGame();
+				return;
+			}
+			else if (m_menu->getActiveIndex() == 2)
+			{
+				m_running = false;
+				return;
+			}
+			break;
+		}
+
+		return;
+	}
+
+	else if (m_gameState != Playing)
+		return;
+
+
+	// GAME
+	switch (m_lastPressedKey)
+	{
+		// rotation
+	case sf::Keyboard::Up:
+		rotateMino(1);
+		break;
+
+		// soft drop
+	case sf::Keyboard:: Down:
+		m_softDrop = true;
+		break;
+
+		// horizontal movement
+	case sf::Keyboard::Left:
+		moveMino(sf::Vector2i(-1, 0));
+		break;
+
+	case sf::Keyboard::Right:
+		moveMino(sf::Vector2i(1, 0));
+		break;
+
+	case sf::Keyboard::Space:
+		m_hardDrop = true;
+		break;
+	}
+
+	// falling
+	if (m_moveMinoDown)
+	{
+		moveMino(sf::Vector2i(0, -1));
+		std::cout << "Move mino down!" << std::endl;
+
+		if (m_hardDrop)
+		{
+			m_score.hardDropRows++;
+		}
+		else if (m_softDrop)
+		{
+			m_score.softDropRows++;
+		}
+	}
+}
+
+void Game::collision()
+{
+	// check game state, collision only when playing the game
+	if (m_gameState != Playing)
+		return;
+
+
+	const std::array<sf::Vector2i, 4>& positions = m_activeMino->getShapePositions();
+
+	// rotation collision
+	if (m_lastPressedKey == sf::Keyboard::Up)
+	{
+		if (checkCollision(positions))
+		{
+			rotateMino(-1);
+			std::cout << "CANNOT ROTATE!" << std::endl;
+			return;
+		}
+	}
+
+	// horizontal collision
+	if (m_lastPressedKey == sf::Keyboard::Left)
+	{
+		if (checkCollision(positions))
+		{
+			moveMino(sf::Vector2i(1, 0));
+			std::cout << "CANNOT MOVE LEFT!" << std::endl;
+			return;
+		}
+	}
+
+	if (m_lastPressedKey == sf::Keyboard::Right)
+	{
+		if (checkCollision(positions))
+		{
+			moveMino(sf::Vector2i(-1, 0));
+			std::cout << "CANNOT MOVE RIGHT!" << std::endl;
+			return;
+		}
+	}
+
+	// falling collision
+	if (m_moveMinoDown)
+	{
+		for (int i = 0; i < 4; i++)
+		{
+			if (!m_playfield->isCellEmpty(positions[i]))
+			{
+				std::cout << "MINO LANDED!" << std::endl;
+
+				// save mino to the playfield grid
+				for (int j = 0; j < 4; j++)
+				{
+					m_playfield->setCellType(sf::Vector2i(positions[j].x, positions[j].y + 1), m_activeMino->getShapeType());
+				}
+
+				// full rows and scoring
+				updateScore(m_playfield->clearFullRows());
+				m_softDrop = false;
+				m_score.softDropRows = 0;
+				m_hardDrop = false;
+				m_score.hardDropRows = 0;
+
+				// check if minos stacked to the top
+				for (int j = 0; j < 4; j++)
+				{
+					if (positions[j].y > m_config.rows - 2)
+					{
+						std::cout << "GAME OVER" << std::endl;
+						// gameOver();
+						exit(1);
+					}
+				}
+
+				// spawn new mino
+				spawnMino();
+				break;
+			}
+		}
+	}
+}
+
+void Game::inputEvents()
+{
+	m_lastPressedKey = sf::Keyboard::Unknown;
+	sf::Event event;
+
+	while (m_window->pollEvent(event))
+	{
+		if (event.type == sf::Event::Closed)
+		{
+			m_running = false;
+			std::cout << "Window closed\n";
+			return;
+		}
+		if (event.type == sf::Event::KeyPressed)
+		{
+			switch (event.key.code)
+			{
+			case sf::Keyboard::Escape:	togglePause(); return;
+			case sf::Keyboard::Enter:	m_lastPressedKey = sf::Keyboard::Enter; break;
+			case sf::Keyboard::Left:	m_lastPressedKey = sf::Keyboard::Left; break;
+			case sf::Keyboard::Right:	m_lastPressedKey = sf::Keyboard::Right; break;
+			case sf::Keyboard::Up:		m_lastPressedKey = sf::Keyboard::Up; break;
+			case sf::Keyboard::Down:	m_lastPressedKey = sf::Keyboard::Down; break;
+			case sf::Keyboard::Space:	m_lastPressedKey = sf::Keyboard::Space; break;
+			}
+		}
+	}
+}
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///  RENDERER  //////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void Game::render()
+{
+	m_window->clear();
+	
+	drawTopBar();
+	drawPlayField();
+	drawActiveMino();
+
+	if (m_gameState == Pause)
+	{
+		m_menu->draw(m_window);
+	}
+
+	m_window->display();
+}
+
+sf::Color Game::getColor(int type)
+{
+	return m_config.color[type];
+}
+
+void Game::drawTopBar()
+{
+	sf::RectangleShape cell;
+	cell.setSize(sf::Vector2f(m_config.cellSize * m_config.cols * 1.0f, m_config.topBarHeight * 1.0f));
+	cell.setPosition(0 * 1.0f, 0 * 1.0f);
+	cell.setOutlineThickness(-2);
+	cell.setOutlineColor(getColor(9));
+	cell.setFillColor(getColor(8));
+	m_window->draw(cell);
+
+	sf::Text text;
+	text.setFont(m_font);
+	text.setCharacterSize(24);
+	text.setFillColor(sf::Color::White);
+	text.setStyle(sf::Text::Bold);
+
+	text.setString("SCORE : " + std::to_string(m_score.points));
+	text.setPosition(20, 15);
+	m_window->draw(text);
+
+	text.setString("LINES : " + std::to_string(m_score.rows));
+	text.setPosition(36, 55);
+	m_window->draw(text);
+
+	text.setString("LEVEL : " + std::to_string(m_score.level));
+	text.setPosition(261, 55);
+	m_window->draw(text);
+
+
+	std::string hours = std::to_string(m_score.playTime / 3600);
+	std::string minutes = std::to_string((m_score.playTime - ((m_score.playTime / 3600) * 3600)) / 60);
+	std::string seconds = std::to_string(m_score.playTime - ((m_score.playTime / 3600) * 3600) - (((m_score.playTime - ((m_score.playTime / 3600) * 3600)) / 60) * 60));
+
+	if (hours.length() == 1) hours = "0" + hours;
+	if (minutes.length() == 1) minutes = "0" + minutes;
+	if (seconds.length() == 1) seconds = "0" + seconds;
+
+	text.setString("TIME : " + hours + ":" + minutes + ":" + seconds);
+	text.setPosition(276, 15);
+	m_window->draw(text);
+}
+
+void Game::drawPlayField()
+{
+	sf::RectangleShape cell;
+	cell.setSize(sf::Vector2f(m_config.cellSize * 1.0f, m_config.cellSize * 1.0f));
+	cell.setOutlineThickness(-2);
+	cell.setOutlineColor(getColor(9));
+
+	for (int y = 1; y <= m_config.rows; y++)
+	{
+		for (int x = 1; x <= m_config.cols; x++)
+		{
+			cell.setPosition(m_config.cellSize * (x - 1) * 1.0f, m_config.topBarHeight + m_config.cellSize * (m_config.rows - y) * 1.0f);
+			cell.setFillColor(getColor(m_playfield->getCellType(sf::Vector2i(x, y))));
+			m_window->draw(cell);
+		}
+	}
+}
+
+void Game::drawActiveMino()
+{
+	drawMino(m_activeMino, getColor(m_activeMino->getShapeType()));
+	
+	if (m_config.showMinoShadow)
+	{
+		drawMino(m_minoShadow, getColor(10));
+	}
+}
+
+void Game::drawMino(const std::shared_ptr<Tetromino>& tetromino, sf::Color color)
+{
+	sf::RectangleShape cell;
+	cell.setSize(sf::Vector2f(m_config.cellSize * 1.0f, m_config.cellSize * 1.0f));
+	cell.setOutlineThickness(-2);
+	cell.setOutlineColor(getColor(9));
+
+	cell.setFillColor(color);
+
+	const std::array<sf::Vector2i, 4>& positions = tetromino->getShapePositions();
+
+	for (int i = 0; i < 4; i++)
+	{
+		float x = m_config.cellSize * (positions[i].x - 1) * 1.0f;
+		float y = m_config.topBarHeight + m_config.cellSize * (m_config.rows - positions[i].y) * 1.0f;
+		cell.setPosition(x, y);
+		m_window->draw(cell);
+	}
+}
