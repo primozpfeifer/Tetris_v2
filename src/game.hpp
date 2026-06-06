@@ -6,6 +6,7 @@
 
 
 enum GameState { Init = 0, Playing, Pause, Gameover };
+enum MinoDropType { Normal = 0, Soft, Hard };
 enum Randomizer { FullRandom = 0, ShuffleBag };
 
 struct Config
@@ -34,7 +35,7 @@ struct Config
 	};
 };
 
-struct									Score
+struct Score
 {
 	int points = 0;
 	int rows = 0;
@@ -50,22 +51,24 @@ class Game
 private:
 
 	Config								m_config;
+
 	std::shared_ptr<sf::RenderWindow>	m_window;
-	sf::Font							m_font;
-	bool								m_running = false;
-	GameState							m_gameState = Init;
 	std::unique_ptr<Menu>				m_menu;
 	std::unique_ptr<Playfield>			m_playfield;
+	std::shared_ptr<Tetromino>			m_activeMino;
+	std::shared_ptr<Tetromino>			m_minoShadow;
+
+	sf::Font							m_font;
+	Score								m_score;
+	std::vector<int>					m_shuffleBag;
+
+	bool								m_running = false;
+	GameState							m_gameState = Init;
 	float								m_gameSpeed = 0.0f;
 	float								m_dT = 0.0f;
 	bool								m_moveMinoDown = false;
+	MinoDropType						m_minoDropType = Normal;
 	sf::Keyboard::Key					m_lastPressedKey = sf::Keyboard::Unknown;
-	bool								m_softDrop = false;
-	bool								m_hardDrop = false;
-	std::vector<int>					m_shuffleBag;
-	Score								m_score;
-	std::shared_ptr<Tetromino>			m_activeMino;
-	std::shared_ptr<Tetromino>			m_minoShadow;
 
 
 public:

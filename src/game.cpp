@@ -22,11 +22,11 @@ void Game::run()
 		m_dT += dT.asSeconds();
 
 		float gameSpeed = m_gameSpeed;
-		if (m_hardDrop)
+		if (m_minoDropType == Hard)
 		{
 			gameSpeed /= 100;
 		}
-		else if (m_softDrop)
+		else if (m_minoDropType == Soft)
 		{
 			gameSpeed /= 10;
 		}
@@ -88,8 +88,7 @@ void Game::initGame()
 void Game::resetGame()
 {
 	m_moveMinoDown = false;
-	m_softDrop = false;
-	m_hardDrop = false;
+	m_minoDropType = Normal;
 	m_shuffleBag.clear();
 	m_score = {};
 	
@@ -141,7 +140,9 @@ void Game::updateScore(int clearedRows)
 {
 	m_score.points += m_score.softDropRows - 1;
 	m_score.points += m_score.hardDropRows * 2 - 1;
-	
+	m_score.softDropRows = 0;
+	m_score.hardDropRows = 0;
+
 	if (clearedRows > 0)
 	{
 		int points = m_score.level + 1;
@@ -313,7 +314,10 @@ void Game::movement()
 
 		// soft drop
 	case sf::Keyboard:: Down:
-		m_softDrop = true;
+		if (m_minoDropType == Normal)
+		{
+			m_minoDropType = Soft;
+		}
 		break;
 
 		// horizontal movement
@@ -326,7 +330,7 @@ void Game::movement()
 		break;
 
 	case sf::Keyboard::Space:
-		m_hardDrop = true;
+		m_minoDropType = Hard;
 		break;
 	}
 
@@ -336,11 +340,11 @@ void Game::movement()
 		moveMino(sf::Vector2i(0, -1));
 		std::cout << "Move mino down!" << std::endl;
 
-		if (m_hardDrop)
+		if (m_minoDropType == Hard)
 		{
 			m_score.hardDropRows++;
 		}
-		else if (m_softDrop)
+		else if (m_minoDropType == Soft)
 		{
 			m_score.softDropRows++;
 		}
@@ -404,11 +408,8 @@ void Game::collision()
 				}
 
 				// full rows and scoring
+				m_minoDropType = Normal;
 				updateScore(m_playfield->clearFullRows());
-				m_softDrop = false;
-				m_score.softDropRows = 0;
-				m_hardDrop = false;
-				m_score.hardDropRows = 0;
 
 				// check if minos stacked to the top
 				for (int j = 0; j < 4; j++)

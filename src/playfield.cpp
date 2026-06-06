@@ -43,7 +43,7 @@ void Playfield::setCellType(sf::Vector2i position, int type)
 
 int Playfield::getCellType(sf::Vector2i position)
 {
-	return m_playfieldGrid[(position.x - 1) + (position.y -1) * m_cols];
+	return m_playfieldGrid[(position.x - 1) + (position.y - 1) * m_cols];
 }
 
 int Playfield::clearFullRows()
