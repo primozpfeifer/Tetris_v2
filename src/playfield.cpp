@@ -10,10 +10,7 @@ Playfield::Playfield(int cols, int rows) : m_cols(cols), m_rows(rows)
 
 void Playfield::reset()
 {
-	for (int i = 0; i < m_playfieldGrid.size(); i++)
-	{
-		m_playfieldGrid[i] = 0;
-	}
+	std::fill(m_playfieldGrid.begin(), m_playfieldGrid.end(), 0);
 }
 
 bool Playfield::isCellEmpty(sf::Vector2i position)
