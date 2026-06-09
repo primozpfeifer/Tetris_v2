@@ -3,6 +3,7 @@
 #include "menu.hpp"
 #include <memory>
 #include <random>
+#include <chrono>
 
 
 enum GameState { Init = 0, Playing, Pause, Gameover };
@@ -40,7 +41,7 @@ struct Score
 	int points = 0;
 	int rows = 0;
 	int level = 0;
-	int playTime = 0;
+	float playTime = 0;
 	int softDropRows = 0;
 	int hardDropRows = 0;
 };
@@ -58,6 +59,7 @@ private:
 	std::shared_ptr<Tetromino>			m_activeMino;
 	std::shared_ptr<Tetromino>			m_minoShadow;
 
+	sf::Clock							m_gameTimer;
 	sf::Font							m_font;
 	Score								m_score;
 	std::vector<int>					m_shuffleBag;
@@ -65,7 +67,7 @@ private:
 	bool								m_running = false;
 	GameState							m_gameState = Init;
 	float								m_gameSpeed = 0.0f;
-	float								m_dT = 0.0f;
+	float								m_timer = 0.0f;
 	bool								m_moveMinoDown = false;
 	MinoDropType						m_minoDropType = Normal;
 	sf::Keyboard::Key					m_lastPressedKey = sf::Keyboard::Unknown;

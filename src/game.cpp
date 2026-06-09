@@ -18,35 +18,16 @@ void Game::run()
 
 	while (m_running)
 	{
-		sf::Time dT = frameTimer.restart();
-		m_dT += dT.asSeconds();
-
-		float gameSpeed = m_gameSpeed;
-		if (m_minoDropType == Hard)
-		{
-			gameSpeed /= 100;
-		}
-		else if (m_minoDropType == Soft)
-		{
-			gameSpeed /= 10;
-		}
-
-		if (m_dT >= gameSpeed)
-		{
-			m_dT = 0.0f;
-			m_moveMinoDown = true;
-		}
-
+		m_timer += frameTimer.restart().asSeconds();
+		m_score.playTime = m_gameTimer.getElapsedTime().asSeconds();
 
 		movement();
 		collision();
 		inputEvents();
 		render();
-
-
-		m_moveMinoDown = false;
 	}
 }
+
 
 void Game::initWindow()
 {
@@ -94,7 +75,8 @@ void Game::resetGame()
 	
 	m_gameState = Playing;
 	m_gameSpeed = m_config.gameSpeed;
-	m_dT = 0.0f;
+	m_gameTimer.restart();
+	m_timer = 0.0f;
 	m_playfield->reset();
 	spawnMino();
 }
@@ -165,7 +147,9 @@ void Game::updateScore(int clearedRows)
 
 		m_score.points += points;
 		m_score.rows += clearedRows;
-		m_score.level = int(m_score.rows * 0.1f);
+		m_score.level = static_cast<int>(m_score.rows * 0.1f);
+
+		m_gameSpeed = m_config.gameSpeed - (m_score.level * 0.025f);
 	}
 }
 
@@ -332,6 +316,26 @@ void Game::movement()
 	case sf::Keyboard::Space:
 		m_minoDropType = Hard;
 		break;
+	}
+
+	// game tick
+	float gameSpeed = m_gameSpeed;
+
+	if (m_minoDropType == Hard)
+	{
+		gameSpeed /= 100;
+	}
+	else if (m_minoDropType == Soft)
+	{
+		gameSpeed /= 10;
+	}
+	if (m_timer >= gameSpeed)
+	{
+		m_timer = 0.0f;
+		m_moveMinoDown = true;
+	}
+	else {
+		m_moveMinoDown = false;
 	}
 
 	// falling
@@ -514,9 +518,9 @@ void Game::drawTopBar()
 	m_window->draw(text);
 
 
-	std::string hours = std::to_string(m_score.playTime / 3600);
-	std::string minutes = std::to_string((m_score.playTime - ((m_score.playTime / 3600) * 3600)) / 60);
-	std::string seconds = std::to_string(m_score.playTime - ((m_score.playTime / 3600) * 3600) - (((m_score.playTime - ((m_score.playTime / 3600) * 3600)) / 60) * 60));
+	std::string hours = std::to_string(static_cast<int>(m_score.playTime) / 3600);
+	std::string minutes = std::to_string((static_cast<int>(m_score.playTime) - ((static_cast<int>(m_score.playTime) / 3600) * 3600)) / 60);
+	std::string seconds = std::to_string(static_cast<int>(m_score.playTime) - ((static_cast<int>(m_score.playTime) / 3600) * 3600) - (((static_cast<int>(m_score.playTime) - ((static_cast<int>(m_score.playTime) / 3600) * 3600)) / 60) * 60));
 
 	if (hours.length() == 1) hours = "0" + hours;
 	if (minutes.length() == 1) minutes = "0" + minutes;
