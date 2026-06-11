@@ -43,65 +43,37 @@ int Playfield::getCellType(sf::Vector2i position)
 	return m_playfieldGrid[(position.x - 1) + (position.y - 1) * m_cols];
 }
 
-int Playfield::clearFullRows()
+int Playfield::clearLines()
 {
-	int fullRows = 0;
+	int cleared = 0;
 
 	for (int y = 1; y <= m_rows; y++)
 	{
-		int fullCells = countFullCells(y);
+		bool full = true;
 
-		// full	row found
-		if (fullCells == m_cols)
+		// check for full lines
+		for (int x = 1; x <= m_cols; x++)
 		{
-			fullRows++;
-			clearRow(y);
+			if (isCellEmpty(sf::Vector2i(x, y)))
+			{
+				full = false;
+				break;
+			}
 		}
-
-		// empty row found -> cancel the scan
-		else if (fullCells == 0)
+		// full	line found
+		if (full)
 		{
-			break;
-		}
-
-		// move row down for the amount of full rows found so far (if any)
-		else if (fullRows > 0)
-		{
-			moveRowDown(y, fullRows);
-		}
-	}
-
-	return fullRows;
-}
-
-int Playfield::countFullCells(int y)
-{
-	int fullCells = 0;
-	
-	for (int x = 1; x <= m_cols; x++)
-	{
-		if (!isCellEmpty(sf::Vector2i(x, y)))
-		{
-			fullCells++;
+			cleared++;
+			// copy all rows above the current row down one row
+			for (int y2 = y; y2 < m_rows; y2++)
+			{
+				const auto currentLineIterator = m_playfieldGrid.begin() + (y2 - 1) * m_cols;
+				std::copy_n(currentLineIterator + m_cols, m_cols, currentLineIterator);
+			}
+			// clear top row
+			std::fill(m_playfieldGrid.end() - m_cols, m_playfieldGrid.end(), 0);
+			y--;
 		}
 	}
-
-	return fullCells;
-}
-
-void Playfield::clearRow(int y)
-{
-	for (int x = 1; x <= m_cols; x++)
-	{
-		setCellType(sf::Vector2i(x, y), 0);
-	}
-}
-
-void Playfield::moveRowDown(int y, int rows)
-{
-	for (int x = 1; x <= m_cols; x++)
-	{
-		setCellType(sf::Vector2i(x, y - rows), getCellType(sf::Vector2i(x, y)));	// copy row down
-		setCellType(sf::Vector2i(x, y), 0);											// clear row
-	}
+	return cleared;
 }

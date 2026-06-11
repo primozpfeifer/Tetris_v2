@@ -39,7 +39,7 @@ struct Config
 struct Score
 {
 	int points = 0;
-	int rows = 0;
+	int lines = 0;
 	int level = 0;
 	float playTime = 0;
 	int softDropRows = 0;

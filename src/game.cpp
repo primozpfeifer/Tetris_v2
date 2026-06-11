@@ -118,18 +118,18 @@ int Game::randomShapeType()
 	return shapeType;
 }
 
-void Game::updateScore(int clearedRows)
+void Game::updateScore(int linesCleared)
 {
 	m_score.points += m_score.softDropRows - 1;
 	m_score.points += m_score.hardDropRows * 2 - 1;
 	m_score.softDropRows = 0;
 	m_score.hardDropRows = 0;
 
-	if (clearedRows > 0)
+	if (linesCleared > 0)
 	{
 		int points = m_score.level + 1;
 
-		switch (clearedRows)
+		switch (linesCleared)
 		{
 		case 1:
 			points *= 40;
@@ -146,8 +146,8 @@ void Game::updateScore(int clearedRows)
 		}
 
 		m_score.points += points;
-		m_score.rows += clearedRows;
-		m_score.level = static_cast<int>(m_score.rows * 0.1f);
+		m_score.lines += linesCleared;
+		m_score.level = static_cast<int>(m_score.lines * 0.1f);
 
 		m_gameSpeed = m_config.gameSpeed - (m_score.level * 0.025f);
 	}
@@ -411,9 +411,9 @@ void Game::collision()
 					m_playfield->setCellType(sf::Vector2i(positions[j].x, positions[j].y + 1), m_activeMino->getShapeType());
 				}
 
-				// full rows and scoring
+				// full lines and scoring
 				m_minoDropType = Normal;
-				updateScore(m_playfield->clearFullRows());
+				updateScore(m_playfield->clearLines());
 
 				// check if minos stacked to the top
 				for (int j = 0; j < 4; j++)
@@ -509,7 +509,7 @@ void Game::drawTopBar()
 	text.setPosition(20, 15);
 	m_window->draw(text);
 
-	text.setString("LINES : " + std::to_string(m_score.rows));
+	text.setString("LINES : " + std::to_string(m_score.lines));
 	text.setPosition(36, 55);
 	m_window->draw(text);
 

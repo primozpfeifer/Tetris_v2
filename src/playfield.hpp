@@ -19,8 +19,5 @@ public:
 	bool isCellEmpty(sf::Vector2i position);
 	void setCellType(sf::Vector2i position, int type);
 	int getCellType(sf::Vector2i position);
-	int clearFullRows();
-	int countFullCells(int y);
-	void clearRow(int y);
-	void moveRowDown(int y, int rows);
+	int clearLines();
 };
