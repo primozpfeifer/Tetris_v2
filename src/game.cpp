@@ -21,8 +21,7 @@ void Game::run()
 		m_timer += frameTimer.restart().asSeconds();
 		m_score.playTime = m_gameTimer.getElapsedTime().asSeconds();
 
-		movement();
-		collision();
+		update();
 		inputEvents();
 		render();
 	}
@@ -85,20 +84,19 @@ int Game::randomShapeType()
 {
 	int shapeType = 0;
 
-	std::random_device rd;
-	std::mt19937_64 gen(rd());
+	static std::mt19937 gen(std::random_device{}());
 
 	// full random
 	if (m_config.randomizer == FullRandom)
 	{
-		std::uniform_int_distribution uid(1, 7);
+		std::uniform_int_distribution<int> uid(1, 7);
 		shapeType = uid(gen);
 	}
 
 	// shuffle bag
 	else if (m_config.randomizer == ShuffleBag)
 	{
-		if (m_shuffleBag.size() == 0)
+		if (m_shuffleBag.empty())
 		{
 			for (int i = 1; i <= 7; i++)
 			{
@@ -108,7 +106,7 @@ int Game::randomShapeType()
 
 		int elements = static_cast<int>(m_shuffleBag.size());
 
-		std::uniform_int_distribution uid(0, elements - 1);
+		std::uniform_int_distribution<int> uid(0, elements - 1);
 		int index = uid(gen);
 		shapeType = m_shuffleBag[index];
 
@@ -142,6 +140,8 @@ void Game::updateScore(int linesCleared)
 			break;
 		case 4:
 			points *= 1200;
+			break;
+		default:
 			break;
 		}
 
@@ -233,9 +233,9 @@ void Game::updateShadowPosition()
 
 bool Game::checkCollision(const std::array<sf::Vector2i, 4>& positions)
 {
-	for (int i = 0; i < 4; i++)
+	for (const auto& position : positions)
 	{
-		if (!m_playfield->isCellEmpty(positions[i]))
+		if (!m_playfield->isCellEmpty(position))
 		{
 			return true;
 		}
@@ -247,7 +247,7 @@ bool Game::checkCollision(const std::array<sf::Vector2i, 4>& positions)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-void Game::movement()
+void Game::update()
 {
 	// MAIN MENU
 	if (m_gameState == Pause)
@@ -291,12 +291,12 @@ void Game::movement()
 	// GAME
 	switch (m_lastPressedKey)
 	{
-		// rotation
+	// rotation
 	case sf::Keyboard::Up:
 		rotateMino(1);
 		break;
 
-		// soft drop
+	// soft drop
 	case sf::Keyboard:: Down:
 		if (m_minoDropType == Normal)
 		{
@@ -304,7 +304,7 @@ void Game::movement()
 		}
 		break;
 
-		// horizontal movement
+	// horizontal movement
 	case sf::Keyboard::Left:
 		moveMino(sf::Vector2i(-1, 0));
 		break;
@@ -329,18 +329,13 @@ void Game::movement()
 	{
 		gameSpeed /= 10;
 	}
+
+	// falling
 	if (m_timer >= gameSpeed)
 	{
 		m_timer = 0.0f;
 		m_moveMinoDown = true;
-	}
-	else {
-		m_moveMinoDown = false;
-	}
 
-	// falling
-	if (m_moveMinoDown)
-	{
 		moveMino(sf::Vector2i(0, -1));
 		std::cout << "Move mino down!" << std::endl;
 
@@ -353,6 +348,11 @@ void Game::movement()
 			m_score.softDropRows++;
 		}
 	}
+	else {
+		m_moveMinoDown = false;
+	}
+
+	collision();
 }
 
 void Game::collision()
@@ -458,6 +458,7 @@ void Game::inputEvents()
 			case sf::Keyboard::Up:		m_lastPressedKey = sf::Keyboard::Up; break;
 			case sf::Keyboard::Down:	m_lastPressedKey = sf::Keyboard::Down; break;
 			case sf::Keyboard::Space:	m_lastPressedKey = sf::Keyboard::Space; break;
+			default: break;
 			}
 		}
 	}

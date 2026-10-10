@@ -95,7 +95,7 @@ private:
 	void updateShadowPosition();
 	bool checkCollision(const std::array<sf::Vector2i, 4>& positions);
 
-	void movement();
+	void update();
 	void collision();
 	void inputEvents();
 	
